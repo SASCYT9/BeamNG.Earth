@@ -38,6 +38,12 @@ class ClassifyTest(unittest.TestCase):
         self.assertEqual(gs.classify("atm", "atm", None, "open", "MARATHON"), (False, True, False))
         self.assertIsNone(gs.classify("convenience_store", "", "", "open", "Sheetz Bakery"))
 
+    def test_ukrainian_brands(self):
+        # an OKKO or a WOG filed as a shop or a café (their stores) is a station by its brand alone
+        for q, name in (("Q2045483", "OKKO"), ("Q12072939", "WOG"), ("Q117706281", "UPG"), ("Q2447961", "Ukrnafta")):
+            self.assertEqual(gs.classify("convenience_store", "convenience_store", q, "open"), (False, True, False))
+            self.assertEqual(gs.classify("cafe", "cafe", "", "open", name), (False, True, False), name)
+
     def test_brand_lists_disjoint(self):
         self.assertFalse(set(gs.FUEL_BRANDS) & set(gs.CONV_BRANDS))
         self.assertIn("Q7492551", gs.FUEL_BRANDS)       # Sheetz (all 48 around Pittsburgh filed as gas stations)

@@ -40,6 +40,14 @@ FUEL_BRANDS = {
     # Sheetz: all 48 of its places around Pittsburgh are filed as gas stations, and one of its stores near Pittsburgh has
     # no canopy in any building data, so the convenience rule left it without pumps (the user, 2026-10-23: move it)
     "Q7492551": "Sheetz",
+    # Ukraine, Moldova and Belarus (the owner, 2026-11-09; the ids from the name-suggestion-index's amenity=fuel
+    # brands for UA / MD / BY): their stations were found only when a pin said gas_station, or by name
+    "Q2045483": "OKKO", "Q12072939": "WOG", "Q1622293": "SOCAR", "Q117706281": "UPG", "Q2447961": "Ukrnafta",
+    "Q60966526": "KLO", "Q56356523": "BRSM-Nafta", "Q96047373": "Amic", "Q119198381": "ANP",
+    "Q140129495": "Avantage7", "Q117706332": "Motto", "Q116925255": "U.GO", "Q121092268": "Marshal",
+    "Q112082302": "Chipo", "Q117707193": "BVS", "Q12122687": "Avias", "Q117706274": "Ukr-Petrol",
+    "Q4344907": "Parallel", "Q134428249": "Autotrans", "Q1755034": "Petrom", "Q1788862": "Rompetrol",
+    "Q20432218": "Tirex Petrol", "Q4082693": "Belorusneft", "Q329347": "Lukoil", "Q1461799": "Gazprom Neft",
 }
 # Convenience brands with fuel at some of their stores: a match needs a canopy or a gas_station pin too.
 CONV_BRANDS = {
