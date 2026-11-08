@@ -65,7 +65,7 @@ def style(country, us):
     return {"CA": STYLE_CANADA, "SE": STYLE_SWEDEN}.get((country or "").upper(), STYLE_VIENNA)
 
 
-def _limits(feats, i, spec, mph, face):
+def _limits(feats, i, spec, mph, face, country=None):
     """[(fraction, posted value)] of feature i from 0 on: road_mph (the AI's) on each piece of its speed rules."""
     cuts = {0.0}
     table = feats.rules.get("max_speed_kmh")
@@ -76,7 +76,7 @@ def _limits(feats, i, spec, mph, face):
                     cuts.add(round(f, 6))
     cuts = sorted(cuts) + [1.0]
     out = []
-    country = "SE" if face == STYLE_SWEDEN else None
+    country = "SE" if face == STYLE_SWEDEN else country      # (the law's limits: navgraph.road_mph)
     for a, b in zip(cuts[:-1], cuts[1:]):
         v = posted(navgraph.road_mph(feats, i, spec, mph, at=(a + b) / 2, country=country), mph, face)
         if not out or out[-1][1] != v:
@@ -84,10 +84,10 @@ def _limits(feats, i, spec, mph, face):
     return out
 
 
-def _cell_rows(feats, frame, urban, widths, left_hand, mph, face=STYLE_VIENNA):
+def _cell_rows(feats, frame, urban, widths, left_hand, mph, face=STYLE_VIENNA, country=None):
     """{fid: (lon/lat line, xy line, meta [half width, dir, rank, urban, link], [(fraction, connector)],
     [(fraction, value)], [(start, end)] off the ground)} of a decoded map cell in frame (kept on the cell)."""
-    key = (frame.lat0, frame.lon0, frame.h0, bool(left_hand), urban, widths, bool(mph), face)
+    key = (frame.lat0, frame.lon0, frame.h0, bool(left_hand), urban, widths, bool(mph), face, country)
     with _lock:
         memo = feats.__dict__.setdefault('_speed_rows', {})
         got = memo.get(key)
@@ -121,7 +121,7 @@ def _cell_rows(feats, frame, urban, widths, left_hand, mph, face=STYLE_VIENNA):
             skips = [(0.0, 1.0)] if bridge else [(a, b) for a, b, _ in roads.level_ranges(feats, i)]
             meta = (sp.width / 2, (int(sp.dir) or 1) if sp.oneway else 0, RANK.get(sp.cls, 0),
                     1.0 if sp.urban else 0.0, 1.0 if getattr(sp, "link", False) else 0.0)
-            got[str(feats.ids[i])] = (line, pts, meta, cons, _limits(feats, i, sp, mph, face), skips)
+            got[str(feats.ids[i])] = (line, pts, meta, cons, _limits(feats, i, sp, mph, face, country), skips)
     with _lock:
         if len(memo) >= CELL_FRAMES:
             memo.pop(next(iter(memo)))
@@ -175,7 +175,7 @@ def _outlines(pavements):
     return got
 
 
-def place(frame, box, context, left_hand=False, mph=True, face=STYLE_VIENNA):
+def place(frame, box, context, left_hand=False, mph=True, face=STYLE_VIENNA, country=None):
     """The speed-limit signs of box (x0, y0, x1, y1): (k, 9) [x, y, travel x, travel y, value, size class, road x,
     road y, urban] (speed_sign_place's)."""
     fast.require(KERNEL, "speed-limit signs")
@@ -187,7 +187,8 @@ def place(frame, box, context, left_hand=False, mph=True, face=STYLE_VIENNA):
         feats = context.cell(key)
         if feats is None or not len(feats):
             continue
-        for fid, row in _cell_rows(feats, frame, context.urban, context.widths, left_hand, mph, face).items():
+        for fid, row in _cell_rows(feats, frame, context.urban, context.widths, left_hand, mph, face,
+                                         country).items():
             if fid not in seen:         # (a line is whole in every cell it crosses)
                 seen.add(fid)
                 rows.append(row)
@@ -276,10 +277,10 @@ def sweden_mesh(table, origin):
     return np.vstack(P), np.vstack(T), np.vstack(UV), MATERIALS_C31, np.concatenate(M)
 
 
-def build_tile(frame, tx, ty, elev, context, decks=(), left_hand=False, mph=True, face=STYLE_VIENNA):
+def build_tile(frame, tx, ty, elev, context, decks=(), left_hand=False, mph=True, face=STYLE_VIENNA, country=None):
     """The mesh (signstream.write_tile's) of road tile (tx, ty)'s speed-limit signs, or None (none)."""
     box = roads.tile_bbox(tx, ty)
-    signs = place(frame, box, context, left_hand, mph, face)
+    signs = place(frame, box, context, left_hand, mph, face, country)
     keep = [k for k in range(len(signs)) if not exitsigns._on_deck(signs[k, :2], decks, 1.5)]
     if not keep:
         return None
