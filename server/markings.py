@@ -68,9 +68,16 @@ _WHITE = Style(centre="line_white", w=0.12, w_motorway=0.15, edge=0.15, edge_mot
                lane_motorway=(3.0, 9.0), left_edge=None, double_centre_urban=False, double_gap=0.12, min_centre_m=5.5)
 _YELLOW = _WHITE._replace(centre="line_yellow")
 
+# Ukraine (DSTU 2587:2021, the owner 2026-11-09): 1.5 broken lines 1:2 by the speed (up to 50 km/h 1-3 m dashes with
+# 2-6 m gaps, to 90 km/h 3-4 / 6-8, over 90 4-5 / 8-10); line width 0.15 m on I-II category roads and main streets,
+# 0.10 m on the others (towns); 1.2 edge lines solid, 0.20 m on I-III category roads and main roads; 1.3 double solid
+STYLES_UA = Style(centre="line_white", w=0.15, w_motorway=0.15, edge=0.20, edge_motorway=0.20,
+                  centre_rural=(4.0, 8.0), centre_urban=(3.0, 6.0), lane_rural=(4.0, 8.0), lane_urban=(3.0, 6.0),
+                  lane_motorway=(5.0, 10.0), left_edge=None, double_centre_urban=False, double_gap=0.10,
+                  min_centre_m=5.5, w_urban=0.10)
 STYLES = {"US": _US, "CA": _CA, "GB": _GB, "IE": _GB, "IM": _GB, "JE": _GB, "GG": _GB, "DE": _DE, "AT": _DE,
           "CH": _DE, "LI": _DE, "LU": _DE, "FR": _FR, "MC": _FR, "BE": _FR, "NL": _NL, "JP": _JP, "AU": _AU, "NZ": _AU,
-          "SE": _SE}
+          "SE": _SE, "UA": STYLES_UA}
 # where centre lines are yellow (outside the US and Canada): the Americas, Norway, Finland, South Korea, China, Taiwan,
 # Thailand (research table 4.4)
 YELLOW_CENTRE = {"MX", "GT", "BZ", "HN", "SV", "NI", "CR", "PA", "CU", "DO", "HT", "PR", "JM", "BS", "TT", "CO", "VE",
