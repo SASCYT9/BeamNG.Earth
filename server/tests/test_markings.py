@@ -20,6 +20,9 @@ class StyleTest(unittest.TestCase):
         self.assertEqual(markings.style(None, -100.0).centre, "line_yellow", "unknown: by longitude")
         self.assertEqual(markings.style(None, 10.0).centre, "line_white")
         self.assertEqual(markings.style("SE").centre_rural, (3.0, 9.0))
+        ua = markings.style("UA")         # DSTU 2587:2021: 1:2 broken lines by the speed, 0.10 m lines in town
+        self.assertEqual((ua.centre_urban, ua.centre_rural, ua.lane_motorway), ((3.0, 6.0), (4.0, 8.0), (5.0, 10.0)))
+        self.assertEqual((ua.w_urban, ua.edge), (0.10, 0.20))
 
 
 class DashTest(unittest.TestCase):
