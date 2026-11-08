@@ -846,7 +846,7 @@ def _walled(c, q, blds):
 
 # --- stations by region (the user, 2026-10-23: "I want to use them based on region so we should take advantage of the
 # italy assets for europe") ---------------------------------------------------------------------------------------
-EUROPE = {"alpine", "europe_north", "nordic", "mediterranean"}    # buildings.region_style's names
+EUROPE = {"alpine", "europe_north", "nordic", "mediterranean", "post_soviet"}    # buildings.region_style's names
 US_EAST = {"us_east", "us_south"}       # East Coast USA's units (the user, 2026-10-23: "check the east coast etc.")
 
 
