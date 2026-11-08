@@ -39,6 +39,11 @@ KMH_DEFAULT = {"motorway": 120, "trunk": 100, "primary": 80, "secondary": 70}
 # Sweden's limits by law where no sign says otherwise, whatever the class: 50 km/h in a built-up area, 70 outside it
 # (bashastighet, Trafikförordningen 1998:1276 3 kap. 17 §), 110 on a motorway (9 kap. 1 §). Slower classes as above.
 SE_ROADS = {"trunk", "primary", "secondary", "tertiary", "unclassified", "residential"}
+# Ukraine's limits by law where no sign says otherwise (Pravyla dorozhnoho rukhu 12.4-12.6, the owner 2026-11-09):
+# 50 km/h in a built-up area (a residential street is in one), 20 in a living street; outside them 90, 110 on a
+# road with separate carriageways, 130 on a motorway. Unmapped Kyiv avenues were driven at 35-45 mph
+UA_KMH = {"urban": 50, "rural": 90, "dual": 110, "motorway": 130, "living_street": 20}
+UA_DUAL_CLASSES = {"trunk", "primary", "secondary"}
 MPH = 0.44704
 LANE_W_M = 3.3
 SIMPLIFY_M = 0.6            # a shape point is kept where the chord would be off by more than this
@@ -185,6 +190,16 @@ def road_mph(feats, i, spec, mph=True, at=0.5, country=None, de_on=False):
         return 110.0 / 1.609344
     if country == "SE" and spec.cls in SE_ROADS:
         return (50.0 if spec.urban else 70.0) / 1.609344
+    if country == "UA":
+        if spec.cls == "motorway":
+            return UA_KMH["motorway"] / 1.609344
+        if spec.cls == "living_street":
+            return UA_KMH["living_street"] / 1.609344
+        if spec.cls in SE_ROADS:
+            if spec.urban or spec.cls == "residential":
+                return UA_KMH["urban"] / 1.609344
+            dual = spec.oneway and bool(spec.median) and not spec.link and spec.cls in UA_DUAL_CLASSES
+            return UA_KMH["dual" if dual else "rural"] / 1.609344
     v = DRIVE[spec.cls][1]
     if not mph and spec.cls in KMH_DEFAULT:
         v = KMH_DEFAULT[spec.cls] / 1.609344
