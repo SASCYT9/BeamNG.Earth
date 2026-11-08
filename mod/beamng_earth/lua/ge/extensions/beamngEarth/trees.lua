@@ -289,6 +289,10 @@ M.GROUP_MAX_M.container = 500
 M.GROUP_MAX_M.billboard = 900
 M.GROUP_MAX_M.barn = 800
 M.GROUP_MAX_M.golfflag = 400
+-- Mapped speed bumps (server speedbumps.py): the stock rubber bump (6 m across the road, 16.6 cm from its base to
+-- its top); rows smaller than that are the bump scaled down for a narrow road.
+M.CATALOG.speedbump = { { '/levels/italy/art/shapes/misc/speedbump_01a', 0.166 } }
+M.GROUP_MAX_M.speedbump = 300
 -- Pure: whether a group is a road barrier's (guard rails, jersey and cable barriers): continuous runs, not thinned
 -- below the tile cap.
 function M.isBarrier(g)
