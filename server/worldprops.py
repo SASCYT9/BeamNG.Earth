@@ -93,6 +93,12 @@ def tile_props(frame, tx, ty, md, elev):
             log.warning("billboards: %s: %s", type(ex).__name__, ex)
     for feats, rows in blds:
         _barns(frame, feats, rows, (x0, y0, x1, y1), placed, skip)
+    try:                    # mapped speed bumps (speedbumps.py: the shipped OpenStreetMap extracts), across their road
+        import speedbumps
+        placed.extend(speedbumps.rows(frame, (x0, y0, x1, y1), _Once(lambda: _class_lines(
+            frame, _layer(md, roads.cells_of_tile(frame, tx, ty, margin=speedbumps.SNAP_M + 1.0), "roads")))))
+    except Exception as ex:
+        log.warning("speed bumps: %s: %s", type(ex).__name__, ex)
     boxes.sort(key=lambda b: (b["x"], b["y"]))
     placed.extend(boxes[:CONT_TILE_MAX])
     if not placed:
@@ -558,6 +564,19 @@ def _polylines(frame, layers):
         pick = _picked(feats, rows, at)
         lines.extend(got if pick is None else (got[k] for k in np.flatnonzero(pick).tolist()))
     return lines
+
+
+def _class_lines(frame, layers):
+    """[(xy (k, 2), class)] of the road lines of layers (speedbumps.rows)."""
+    out = []
+    for feats, rows in layers:
+        cls = _cls(feats)
+        got, at = _memo(feats, "lines", frame, lambda: _layer_lines(frame, feats))
+        pick = _picked(feats, rows, at)
+        for k, (xy, i) in enumerate(zip(got, at)):
+            if pick is None or pick[k]:
+                out.append((xy, str(cls[i]) if cls is not None else ""))
+    return out
 
 
 def _layer_lines(frame, feats):
