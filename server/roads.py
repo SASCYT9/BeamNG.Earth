@@ -9163,6 +9163,26 @@ def build_tile(frame, tx, ty, cells, elev, urban_fn=None, walks=None, bridges=No
                                      priority=priority, ground=ground, development=development,
                                      lighting={fid: str(f.attrs["osm_lit"][i]).strip().lower()
                                                for fid, (f, i, _sp) in seen.items() if "osm_lit" in f.attrs}))
+    if props is not None and walks is not None:     # trolleybus wires over the mapped roads (trolley.py)
+        try:
+            import furniture
+            import osmtags
+            import trolley
+
+            def _way(fid):
+                got = seen.get(fid)
+                if got is None or "src_record" not in got[0].attrs:
+                    return None
+                return osmtags.way_id(str(got[0].attrs["src_record"][got[1]]))
+            twires = []
+            trows = trolley.place(roads, own_box, _way, twires)
+            if trows or twires:
+                props.extend(furniture.under_decks(trows + furniture.lamp_lenses(trows),
+                                                   [(p, h) for p, h, _depth in traffic_decks], twires))
+                if wires is not None:
+                    wires.extend(twires)
+        except Exception as ex:
+            log.warning("trolleybus wires: tile %s_%s: %s: %s", tx, ty, type(ex).__name__, ex)
     aisles = {fid for fid, (f, i, sp) in seen.items()
               if sp.kind == "paved" and _rule_value(f.rules.get("subclass"), i) == "parking_aisle"}
     if (park is not None and walks is not None) or (marks is not None and aisles):
