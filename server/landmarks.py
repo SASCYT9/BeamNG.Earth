@@ -27,7 +27,7 @@ LANDMARK = "landmark"           # the Spec class of a landmark (its name in Spec
 
 # OSM element ("w" a way, "r" a relation: a footprint with a courtyard) and id -> name
 WAYS = {("w", 5013364): "eiffel", ("w", 226413508): "arc", ("w", 123557148): "bigben", ("r", 1834818): "colosseum",
-        ("w", 32965412): "liberty"}
+        ("w", 32965412): "liberty", ("w", 1421908687): "motherland"}
 
 
 def of(src_record):
@@ -707,11 +707,127 @@ def liberty_collision(m, spec, gmin, mat):
     _lbox(m, P, -5.2, 5.2, -4.4, 4.4, gmin + SOL_BASE_Z, gmin + SOL_BASE_Z + 34.0, mat)
 
 
+# ------------------------------------------------------------------------------------------- the Motherland Monument
+
+# Batkivshchyna-Maty (Kyiv, 1981; OSM way 1421908687, the memorial's outline; the owner, 2026-11-09: "real buildings,
+# as Euro Truck brings real landmarks"): a 62 m stainless steel woman on the 40 m museum building, 102 m to the tip of
+# the sword in her raised right hand (16 m long), a 13 x 8 m shield in her left. Its proportions and placement from
+# the published figures and OSM's own detailed parts of it (2025: the terraces 7.5 and 13 m, the pedestal 26.5 m and
+# its ribbed top to 40 m, the head 76-81 m, the shield 72-82 m to her left, the sword's tip 102 m to her right),
+# simplified to what reads from the road; no third party's model or photos. She faces the Dnipro (east-north-east).
+MM_FACING = (math.sin(math.radians(53.0)), math.cos(math.radians(53.0)))     # (east, north)
+# the pedestal's centre from the outline's area centroid (east, north m): the outline takes in the terraces, which
+# reach further east
+MM_OFFSET = (-2.1, -4.6)
+MM_TERRACE_Z, MM_TERRACE_IN_M = 7.5, 15.0   # the outer terraces: grass slopes up to a paved platform this far in
+MM_UPPER = ((7.5, 47.0), (13.0, 35.0))      # the inner terrace: (z, radius) round the pedestal
+MM_PED = ((13.0, 15.0), (26.5, 15.0), (26.5, 14.0), (40.0, 8.5), (40.0, 5.5), (42.0, 5.5))   # the museum and plinth
+MM_BASE_Z = 42.0                # her feet
+MM_TOP_Z = 102.0                # the sword's tip
+MM_SWORD_M = 16.0
+MM_SHIELD = (8.0, 13.0, 0.8)    # its width, height and thickness
+MM_STEEL = (186, 182, 179, 255)
+MM_GRASS = (115, 108, 48, 255)
+MM_PAVING = (148, 129, 114, 255)
+MM_STONE = (112, 113, 118, 255)
+# her figure: (z, half width across, half depth front-back), the robe's hem to the top of her head
+MM_ROBE = ((42.0, 7.2, 5.4), (47.0, 6.6, 4.9), (53.0, 5.9, 4.3), (59.0, 5.2, 3.7), (63.5, 4.7, 3.3), (67.5, 5.4, 3.5),
+           (71.5, 6.2, 3.4), (73.5, 5.6, 3.0), (75.0, 2.8, 2.2))
+MM_HEAD = ((75.0, 1.5, 1.5), (76.0, 2.2, 2.4), (78.5, 2.6, 2.8), (80.5, 2.2, 2.4), (81.2, 0.7, 0.7))
+MM_SWORD_OUT = (1.9, -0.6)      # the sword's tip from her hand (right, front): leaning out, its tip 14.5 m to her right
+# (x right, y front, z): her right arm raised out to the side, the hand where the 16 m sword reaches 102 m
+MM_R_HAND = (12.6, -0.5, MM_TOP_Z - math.sqrt(MM_SWORD_M ** 2 - math.hypot(*MM_SWORD_OUT) ** 2))
+MM_R_SHOULDER, MM_R_ELBOW = (5.4, 0.0, 72.8), (9.2, -0.2, 79.5)
+MM_L_SHOULDER, MM_L_HAND = (-5.4, 0.0, 72.8), (-8.6, -0.8, 75.5)
+MM_SHIELD_C = (-9.7, -1.3, 77.0)
+
+
+def _mm_frame(spec):
+    """(P: (x right, y front) -> the tile's (x, y), the pedestal's centre (x, y), the outline ring ccw)."""
+    ring = np.asarray(spec.ring, np.float64)[:, :2]
+    r = ring if buildings_area(ring) > 0 else ring[::-1]
+    c = _centroid(ring) + np.array(MM_OFFSET)
+    fy = np.array(MM_FACING)
+    fx = np.array([fy[1], -fy[0]])
+    return _local(c, fx, fy), c, r
+
+
+def _ring_loft(m, lower, upper, mat):
+    """The band between two rings of the same count [(x, y, z)] (counter-clockwise from above): facing out."""
+    uv = (0.0, 0.0)
+    n = len(lower)
+    for k in range(n):
+        m.quad(lower[k], lower[(k + 1) % n], upper[(k + 1) % n], upper[k], uv, uv, uv, uv, mat)
+
+
+def _circle(c, r, z, n):
+    return [(c[0] + r * math.cos(2 * math.pi * k / n), c[1] + r * math.sin(2 * math.pi * k / n), z) for k in range(n)]
+
+
+def _mm_base(m, spec, gmin, mat, lite, n):
+    """The terraces, the museum and its ribbed top, the plinth (the parts the cars meet: collision too)."""
+    P, c, r = _mm_frame(spec)
+    uv = (0.0, 0.0)
+    grass, paving, stone = (mat[0], MM_GRASS), (mat[0], MM_PAVING), (mat[0], MM_STONE)
+    # the outer terraces: grass slopes from the outline up to a platform pulled in towards the pedestal
+    d = np.hypot(*(r - c).T)
+    k = np.clip((d - MM_TERRACE_IN_M) / np.maximum(d, 1e-6), 0.3, 1.0)[:, None]
+    inner = c + (r - c) * k
+    _ring_loft(m, [(p[0], p[1], gmin - 1.0) for p in r], [(p[0], p[1], gmin) for p in r], grass)    # (a skirt)
+    _ring_loft(m, [(p[0], p[1], gmin) for p in r], [(p[0], p[1], gmin + MM_TERRACE_Z) for p in inner], grass)
+    m.poly([(p[0], p[1], gmin + MM_TERRACE_Z) for p in inner], [uv] * len(inner), paving)
+    # the inner terrace and the museum: frustums round the pedestal's centre
+    (z0, r0), (z1, r1) = MM_UPPER
+    _ring_loft(m, _circle(c, r0, gmin + z0, n), _circle(c, r1, gmin + z1, n), grass)
+    m.poly(_circle(c, r1, gmin + z1, n), [uv] * n, paving)
+    for (za, ra), (zb, rb) in zip(MM_PED[:-1], MM_PED[1:]):
+        if za == zb:
+            m.poly(_circle(c, ra, gmin + za, n), [uv] * n, stone)       # (a ledge)
+        else:
+            _ring_loft(m, _circle(c, ra, gmin + za, n), _circle(c, rb, gmin + zb, n), stone)
+    m.poly(_circle(c, MM_PED[-1][1], gmin + MM_PED[-1][0], n), [uv] * n, stone)
+    return P
+
+
+def motherland(m, spec, gmin, mat, lite=False, tokens=None):
+    """The Motherland Monument on its terraces (spec's ring: the memorial's outline). tokens' "floodlit": the statue
+    (lit at night: floodlit from below), the terraces and the museum in mat."""
+    lit = (tokens or {}).get("floodlit")
+    P = _mm_base(m, spec, gmin, mat, lite, 16 if lite else 32)
+    steel = (lit[0] if lit is not None else mat[0], MM_STEEL)
+    zs = gmin                           # (the figures above are heights over the ground)
+
+    def at(x, y, z):
+        return (*P(x, y), zs + z)
+    _loft(m, P, [(z - MM_BASE_Z, hx, hy) for z, hx, hy in MM_ROBE], zs + MM_BASE_Z, steel, 10 if lite else 18)
+    _loft(m, P, [(z - MM_HEAD[0][0], hx, hy) for z, hx, hy in MM_HEAD], zs + MM_HEAD[0][0], steel, 8 if lite else 12)
+    arm = 1.6 if lite else 1.9
+    # the right arm raised out to the side, the sword up from her hand
+    beam(m, at(*MM_R_SHOULDER), at(*MM_R_ELBOW), arm + 0.4, steel)
+    beam(m, at(*MM_R_ELBOW), at(*MM_R_HAND), arm, steel)
+    hx, hy, hz = MM_R_HAND
+    tip = (hx + MM_SWORD_OUT[0], hy + MM_SWORD_OUT[1], MM_TOP_Z)
+    beam(m, at(hx, hy, hz - 1.0), at(hx, hy, hz + 1.0), arm + 0.3, steel)                  # the hand round the hilt
+    beam(m, at(hx - 1.6, hy, hz + 0.8), at(hx + 1.6, hy, hz + 0.8), 0.6, steel)            # the cross guard
+    beam(m, at(hx, hy, hz), at(*tip), 1.3 if not lite else 1.8, steel)                    # the blade (16 m)
+    # the left arm down to the shield, held up beside her, its face to the front
+    beam(m, at(*MM_L_SHOULDER), at(*MM_L_HAND), arm + 0.3, steel)
+    w, h, t = MM_SHIELD
+    sx, sy, sz = MM_SHIELD_C
+    _lbox(m, P, sx - w / 2, sx + w / 2, sy - t / 2, sy + t / 2, zs + sz - h / 2, zs + sz + h / 2, steel)
+
+
+def motherland_collision(m, spec, gmin, mat):
+    P = _mm_base(m, spec, gmin, mat, True, 16)
+    _lbox(m, P, -5.0, 5.0, -3.8, 3.8, gmin + MM_BASE_Z, gmin + 74.0, mat)
+
+
 BUILDERS = {"eiffel": (eiffel, eiffel_collision, EIFFEL_ANTENNA_Z, EIFFEL_COLOUR, "iron"),
             "arc": (arc, arc_collision, ARC_H, ARC_COLOUR, "floodlit"),
             "bigben": (bigben, bigben_collision, BB_H, BB_COLOUR, "floodlit"),
             "colosseum": (colosseum, colosseum_collision, sum(COL_TIERS) + COL_ATTIC_H, COL_COLOUR, "stone"),
-            "liberty": (liberty, liberty_collision, SOL_TORCH_Z, SOL_COPPER, "stone")}
+            "liberty": (liberty, liberty_collision, SOL_TORCH_Z, SOL_COPPER, "stone"),
+            "motherland": (motherland, motherland_collision, MM_TOP_Z, MM_STEEL, "stone")}
 
 
 # ------------------------------------------------------------------------------------------- the glue

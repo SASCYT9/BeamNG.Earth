@@ -193,6 +193,57 @@ class LibertyTest(unittest.TestCase):
         self.assertGreater(col.arrays()[0][:, 2].max(), landmarks.SOL_BASE_Z)
 
 
+# the memorial's outline (OSM way 1421908687, metres east / north of 50.4266 N 30.5632 E)
+MM_RING = np.array([
+    (34.8, 53.7), (18.6, 42.2), (14.7, 42.5), (12.1, 43.9), (-1.5, 62.6), (-6.7, 60.5), (-13.4, 57.8), (-26.3, 57.6),
+    (-36.5, 53.6), (-46.2, 48.8), (-43.9, 45.0), (-46.9, 42.6), (-48.2, 44.4), (-58.7, 34.7), (-64.2, 27.7),
+    (-69.4, 16.8), (-72.0, 7.9), (-73.1, -1.2), (-73.1, -9.1), (-72.4, -16.5), (-70.9, -22.5), (-73.3, -23.7),
+    (-72.1, -25.9), (-71.5, -27.1), (-67.9, -34.7), (-61.5, -41.9), (-50.0, -51.1), (-36.5, -57.7), (-23.6, -61.1),
+    (-9.8, -61.7), (1.9, -60.5), (16.0, -55.8), (26.3, -48.8), (36.8, -40.5), (44.5, -31.3), (48.7, -23.9),
+    (53.0, -14.0), (56.2, -8.2), (59.6, -2.2), (63.8, 1.8), (69.1, 6.9), (59.9, 19.5), (57.8, 22.4), (56.6, 24.1),
+    (47.8, 36.0), (38.5, 48.6), (36.9, 50.9)])
+MM_STATUE = (-10.0, -6.0)       # the statue's body in OSM's parts (way 1421908679)
+
+
+class MotherlandTest(unittest.TestCase):
+    def build(self, lite=False):
+        spec = bld.landmark_spec(MM_RING, "motherland")
+        m = bld.Mesh()
+        landmarks.build(m, spec, 50.0, (0, landmarks.MM_STONE), lite, {"floodlit": (2, (255, 255, 255, 255))})
+        return spec, m.arrays()
+
+    def test_on_its_pedestal_where_the_map_has_it(self):
+        self.assertEqual(landmarks.of("w1421908687@3"), "motherland")
+        spec, (P, _UV, T, M, C) = self.build()
+        self.assertAlmostEqual(P[:, 2].max(), 50.0 + 102.0, delta=0.3, msg="102 m to the sword's tip")
+        self.assertAlmostEqual(P[:, 2].min(), 49.0, delta=0.1, msg="on its ground (a 1 m skirt)")
+        statue = P[T[M == 2]].reshape(-1, 3)
+        self.assertGreater(statue[:, 2].min(), 50.0 + landmarks.MM_BASE_Z - 0.3, "the statue on the museum, floodlit")
+        body = statue[statue[:, 2] < 50.0 + 66.0]
+        self.assertLess(np.hypot(*(body[:, :2].mean(0) - MM_STATUE)), 3.0, "where OSM's parts put her")
+        # the sword's tip out to her right (south-east, as OSM's parts), the shield to her left (north-west)
+        tip = P[P[:, 2] > 50.0 + 100.0][:, :2].mean(0)
+        self.assertLess(np.hypot(*(tip - (-1.5, -18.0))), 4.0, f"the sword's tip over OSM's ({tip})")
+        shield = statue[(statue[:, 2] > 50.0 + 71.0) & (statue[:, 2] < 50.0 + 83.0)]
+        west = shield[shield[:, 0] < -14.0]
+        self.assertGreater(len(west), 0, "the shield out to the north-west")
+        # nothing above the terraces outside the pedestal's round
+        far = np.hypot(P[:, 0] - MM_STATUE[0], P[:, 1] - MM_STATUE[1]) > 50.0
+        self.assertTrue((P[far, 2] <= 50.0 + landmarks.MM_TERRACE_Z + 1e-6).all())
+        self.assertLess(len(T), bld.MAX_MESH_VERTS // 3)
+
+    def test_far_version_lighter_and_collision(self):
+        _, near = self.build()
+        _, far = self.build(lite=True)
+        self.assertLess(len(far[2]), len(near[2]))
+        spec = bld.landmark_spec(MM_RING, "motherland")
+        col = bld.Mesh()
+        landmarks.collision(col, spec, 0.0, (0, (1, 1, 1, 255)))
+        Pc = col.arrays()[0]
+        self.assertGreater(Pc[:, 2].max(), landmarks.MM_BASE_Z, "the terraces, the museum and her body collide")
+        self.assertLess(Pc[:, 2].max(), 80.0, "(not the sword)")
+
+
 class TileTest(unittest.TestCase):
     def test_drawn_instead_of_its_parts(self):
         """The map's Tour Eiffel (OSM way 5013364) and its parts: one landmark Spec, the parts left out; the building
