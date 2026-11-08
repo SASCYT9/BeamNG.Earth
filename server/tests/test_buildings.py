@@ -67,6 +67,56 @@ class RegionStyleTest(unittest.TestCase):
         self.assertEqual(bld.brick_share(30.0, -90.0), 0.35)
         self.assertEqual(bld.brick_share(40.0, -110.0), 0.15)
 
+    def test_post_soviet_region(self):
+        inside = {"Kyiv": (50.45, 30.52), "Lviv": (49.84, 24.03), "Uzhhorod": (48.62, 22.29),
+                  "Chernivtsi": (48.29, 25.94), "Odesa": (46.48, 30.72), "Izmail": (45.35, 28.84),
+                  "Dnipro": (48.46, 35.05), "Zaporizhzhia": (47.84, 35.14), "Kharkiv": (49.99, 36.23),
+                  "Mariupol": (47.10, 37.55), "Simferopol": (44.95, 34.10), "Minsk": (53.90, 27.56),
+                  "Brest": (52.09, 23.69), "Chisinau": (47.01, 28.86), "Moscow": (55.75, 37.62),
+                  "St Petersburg": (59.94, 30.31), "Volgograd": (48.71, 44.51)}
+        outside = {"Przemysl": (49.78, 22.77), "Lublin": (51.25, 22.57), "Bialystok": (53.13, 23.16),
+                   "Vilnius": (54.69, 25.28), "Riga": (56.95, 24.11), "Tallinn": (59.44, 24.75),
+                   "Helsinki": (60.17, 24.94), "Kirkenes": (69.73, 30.05), "Iasi": (47.16, 27.59),
+                   "Tulcea": (45.18, 28.80), "Kosice": (48.72, 21.26), "Sobrance": (48.74, 22.18),
+                   "Trabzon": (41.00, 39.72), "Tbilisi": (41.72, 44.79), "Istanbul": (41.01, 28.98)}
+        for name, (lat, lon) in inside.items():
+            self.assertEqual(bld.region_style(lat, lon).name, "post_soviet", name)
+        for name, (lat, lon) in outside.items():
+            self.assertNotEqual(bld.region_style(lat, lon).name, "post_soviet", name)
+
+    def test_post_soviet_houses(self):
+        hs = self.houses(50.45, 30.52)
+        self.assertFalse(any(h.porch for h in hs), "no porches")
+        self.assertFalse(any(h.wall and h.wall.startswith(bld.SIDING) for h in hs), "no clapboard siding")
+        pitched = [h for h in hs if h.roof != "flat"]
+        self.assertGreater(len(pitched), 0.8 * len(hs))
+        self.assertGreater(sum(h.roof == "hipped" for h in pitched), 0.5 * len(pitched), "mostly hipped")
+        for h in pitched:
+            mat, k = h.roof_mat.split("|")
+            self.assertIn((mat, int(k)), {(bld.ROOF_SLATE, 3), (bld.ROOF_METAL, 1), (bld.ROOF_METAL, 2),
+                                          (bld.ROOF_METAL, 3), (bld.ROOF_METAL, 4)}, "slate or metal sheet")
+
+    def test_post_soviet_blocks(self):
+        """Kyiv's apartment blocks: precast panels or brick under flat roofs, never glass, 5-16 storeys unmapped."""
+        def block(x, attrs, dense=False):
+            return bld.plan(rect(x * 60, 0, 60, 12), attrs, 0, 50.45, 30.52, dense=dense)
+        for cls in ("", "apartments", "residential"):
+            for floors in (5, 9, 16, 25):
+                specs = [block(x, {"class": cls, "num_floors": floors}) for x in range(60)]
+                self.assertTrue(all(sp.roof == "flat" for sp in specs), (cls, floors))
+                self.assertFalse(any(sp.facade.startswith(bld.OFFICE) for sp in specs), (cls, floors))
+                panel = sum(sp.band == bld.BAND_PANEL for sp in specs) / len(specs)
+                self.assertTrue(0.55 < panel < 0.95, (cls, floors, panel))
+        unmapped = {block(x, {"class": "apartments"}).floors for x in range(200)}
+        self.assertLessEqual(unmapped, {5, 9, 12, 16})
+        self.assertGreaterEqual(len(unmapped), 3)
+        office = [block(x, {"class": "office", "num_floors": 25}, dense=True) for x in range(40)]
+        self.assertTrue(any(sp.facade.startswith(bld.OFFICE) for sp in office), "office towers still glass")
+        # elsewhere unchanged: Berlin's unmapped apartments 3-5 storeys
+        berlin = {bld.plan(rect(x * 60, 0, 60, 12), {"class": "apartments"}, 0, 52.52, 13.40).floors
+                  for x in range(200)}
+        self.assertLessEqual(berlin, {3, 4, 5})
+
     def test_south_asia_houses(self):
         hs = self.houses(28.61, 77.21)                  # Delhi, India
         self.assertFalse(any(h.porch for h in hs), "no American porches in South Asia")

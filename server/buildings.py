@@ -15,6 +15,7 @@ footprints and a ground-height function; no game state.
 """
 from runtimeprofiler import step as profile_step
 import os
+import functools
 import hashlib
 import math
 
@@ -352,9 +353,13 @@ class Style:
     Coarse boxes by region until a facade-material map; the US ones keep their earlier behaviour."""
 
     def __init__(self, name, brick, walls, porch, flat, hipped, roofs, pitch=None, paint=0.3, wall_tints=None,
-                 wood=False, attached=0.0, barn_red=0.0, stone=0.0):
+                 wood=False, attached=0.0, barn_red=0.0, stone=0.0, panel_blocks=0.0, block_floors=None):
         self.name, self.brick, self.walls, self.porch, self.flat = name, brick, walls, porch, flat
         self.barn_red, self.stone = barn_red, stone
+        # panel_blocks: of the residential blocks (BLOCK_CLASSES) of BLOCK_MIN_FLOORS and more, the share with precast
+        # panel facades (the rest brick or plaster; never glass, and their roofs flat); block_floors: the storeys an
+        # apartment block takes when the data has none (None: 3-5)
+        self.panel_blocks, self.block_floors = panel_blocks, block_floors
         self.hipped, self.roofs, self.pitch, self.paint, self.wall_tints = hipped, roofs, pitch, paint, wall_tints
         self.wood, self.attached = wood, attached
 
@@ -395,7 +400,54 @@ STYLES = {
                   paint=0.0, wall_tints=(0, 1, 2, 3, 4, 5, 6, 8)),
     "cool": Style("cool", 0.3, ((SIDING, 0.4),), 0.05, 0.1, 0.3, (_DARK, (ROOF_METAL, (0, 1, 2, 3))), pitch=30.0,
                   paint=0.3, barn_red=0.5),
+    # Ukraine, Belarus, Moldova, European Russia (the owner, 2026-11-09: Kyiv came out as German brick and gables,
+    # Dnipro and Zaporizhzhia in the Middle East's style): towns of 5-, 9- and 16-storey precast panel blocks
+    # (khrushchovkas and their successors) with flat roofs, some red or white brick; private houses of plaster or
+    # brick in pale colours under hipped roofs of grey asbestos slate or metal sheet (red-brown, green, grey), no
+    # porches; old town centres plastered, mostly with low metal roofs
+    "post_soviet": Style("post_soviet", 0.25, ((STUCCO, 0.7),), 0.0, 0.03, 0.7,
+                         ((ROOF_SLATE, (3,)), (ROOF_METAL, (1, 2, 3, 4)), (ROOF_METAL, (3,))), pitch=26.0,
+                         paint=0.2, wall_tints=(0, 1, 2, 3, 4, 10), attached=0.45, panel_blocks=0.75,
+                         block_floors=(5, 5, 5, 9, 9, 9, 12, 16)),
 }
+# The residential blocks a Style's panel_blocks applies to (Overture's class; "" is OSM's building=yes, most of a
+# post-Soviet town's blocks: Kyiv's centre 2026-11-09, 3003 of 6395 buildings "yes", 1939 "apartments")
+BLOCK_CLASSES = {"", "apartments", "residential", "dormitory"}
+BLOCK_MIN_FLOORS = 5
+
+# The post-Soviet style's region (lon, lat): Ukraine, Belarus and Moldova by their western borders (Lviv, Uzhhorod
+# and Brest in; Przemysl, Iasi, Bialystok and Vilnius out), European Russia to the Urals (60 E) without the
+# Baltic states and Finland, north of the Caucasus ridge; the Black Sea's middle south of Crimea. Coarse (~5 km).
+POST_SOVIET = np.array((
+    (30.9, 69.8), (28.9, 69.0), (28.6, 68.3), (30.0, 67.6), (29.0, 66.9), (30.1, 65.7), (29.7, 64.8), (30.6, 64.2),
+    (29.9, 63.8), (31.6, 62.9), (29.6, 61.4), (27.8, 60.5), (28.2, 59.4), (27.8, 59.0), (27.6, 58.0), (27.35, 57.52),
+    (27.8, 57.3), (28.2, 56.15), (26.6, 55.67), (26.7, 55.25), (26.0, 54.95), (25.75, 54.55), (25.55, 54.25),
+    (24.4, 53.9), (23.5, 53.95), (23.7, 53.5), (23.95, 52.75), (23.2, 52.3), (23.65, 52.08), (23.6, 51.5),
+    (24.1, 51.0), (24.0, 50.5), (23.45, 50.2), (23.0, 49.8), (22.7, 49.4), (22.56, 49.08), (22.15, 48.6),
+    (22.15, 48.4), (22.6, 48.1), (22.9, 47.95), (24.6, 47.95), (24.9, 47.73), (25.9, 47.95), (26.6, 48.25),
+    (27.2, 47.9), (27.6, 47.35), (28.1, 46.9), (28.2, 45.5), (28.25, 45.45), (28.8, 45.28), (29.3, 45.35),
+    (29.7, 45.15), (30.5, 44.8), (33.0, 44.25), (36.0, 44.2), (39.5, 43.3), (40.0, 43.4), (42.0, 43.2),
+    (44.6, 42.75), (45.5, 42.5), (46.5, 41.9), (48.4, 41.8), (60.0, 44.0), (60.0, 70.0)), np.float64)
+_PS_BOX = (POST_SOVIET[:, 0].min(), POST_SOVIET[:, 0].max(), POST_SOVIET[:, 1].min(), POST_SOVIET[:, 1].max())
+
+
+@functools.lru_cache(maxsize=65536)
+def _post_soviet(lat2, lon2):
+    """Is (lat, lon), rounded to 0.01 degrees, in POST_SOVIET (even-odd rule)."""
+    x, y = lon2, lat2
+    px, py = POST_SOVIET[:, 0], POST_SOVIET[:, 1]
+    qx, qy = np.roll(px, -1), np.roll(py, -1)
+    cross = (py > y) != (qy > y)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        xs = px + (y - py) * (qx - px) / (qy - py)
+    return bool(np.count_nonzero(cross & (x < xs)) % 2)
+
+
+def in_post_soviet(lat, lon):
+    """Is (lat, lon) in the post-Soviet style's region (POST_SOVIET)."""
+    if not (_PS_BOX[2] <= lat <= _PS_BOX[3] and _PS_BOX[0] <= lon <= _PS_BOX[1]):
+        return False
+    return _post_soviet(round(float(lat), 2), round(float(lon), 2))
 
 
 def region_style(lat, lon):
@@ -410,6 +462,8 @@ def region_style(lat, lon):
         return STYLES["us_east"] if lat > 36.0 else STYLES["us_south"]
     if -56.0 <= lat < 24.0 and -120.0 <= lon <= -30.0:          # Mexico, the Caribbean, Central and South America
         return STYLES["latin_america"]
+    if in_post_soviet(lat, lon):                                # (before the Nordic box: St Petersburg, Karelia)
+        return STYLES["post_soviet"]
     if 45.4 <= lat <= 48.0 and 5.8 <= lon <= 16.5:              # the Alps
         return STYLES["alpine"]
     if 56.0 <= lat <= 72.0 and 4.5 <= lon <= 32.0:              # Norway, Sweden, Finland (brick Copenhagen, Malmo: not)
@@ -588,6 +642,8 @@ def plan(ring, attrs, neighbours=0, lat=None, lon=None, look=None, town=False, d
             nf = 1 if seed < 0.3 else 2
         elif industrial:
             nf = 2 if area > 6000 else 1
+        elif cls == "apartments" and style.block_floors:
+            nf = style.block_floors[int(_hash01(seed, "block floors") * len(style.block_floors))]
         elif cls == "apartments":
             nf = 3 + int(seed * 3)
         elif town:
@@ -623,6 +679,11 @@ def plan(ring, attrs, neighbours=0, lat=None, lon=None, look=None, town=False, d
             else:
                 roof = "gabled" if seed < 1.0 - style.hipped else "hipped"
         else:
+            roof = "flat"
+        # a panel-block town's residential blocks: flat roofs (a 12 m wide 9-storey "residential" block came out
+        # under a house's hipped roof)
+        if (style.panel_blocks and roof != "flat" and cls in BLOCK_CLASSES and not church
+                and (nf or (h or 0) / FLOOR_M) >= BLOCK_MIN_FLOORS):
             roof = "flat"
     # pitched roofs only on near-rectangular footprints (a church's nave keeps its gable beside a tower or an apse)
     if roof != "flat" and (box_fill < (0.6 if church else 0.8) or hw < 2.0
@@ -663,7 +724,17 @@ def plan(ring, attrs, neighbours=0, lat=None, lon=None, look=None, town=False, d
         modern = cls in ("office", "commercial", "hotel") and u_glass < MIDRISE_GLASS_OFFICE
         tall = snf >= GLASS_FLOORS[1] or (snf >= GLASS_FLOORS[0] and (modern or u_glass < OLD_TOWER_GLASS)) \
             or (snf >= 7 and modern)
-        if snf >= 7 and not tall and not industrial:
+        if style.panel_blocks and snf >= BLOCK_MIN_FLOORS and cls in BLOCK_CLASSES and not (industrial or church):
+            # a panel-block town's apartment blocks, low or tall (Kyiv's 25-storey blocks are not glass towers):
+            # square windows on precast panels, else brick or plaster
+            u = _hash01(seed, "panel")
+            if u < style.panel_blocks:
+                facade, band = FACADE_TINTS[int(_hash01(seed, "panel tint") * len(FACADE_TINTS))], BAND_PANEL
+            elif _hash01(seed, "brick") < 0.6:
+                facade, band = BRICK_TINTS[int(seed * 7919) % len(BRICK_TINTS)], BAND_BRICK
+            else:
+                facade, band = FACADE_TINTS[int(seed * 7919) % len(FACADE_TINTS)], BAND_SASH
+        elif snf >= 7 and not tall and not industrial:
             if _hash01(seed, "brick") < brick_share(lat, lon) * 1.2:
                 facade, band = BRICK_TINTS[int(seed * 7919) % len(BRICK_TINTS)], BAND_BRICK
             else:
