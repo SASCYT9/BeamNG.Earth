@@ -38,3 +38,20 @@ usable photo, how clean the rectified facades come out.
   out: the heading from computed_rotation matches computed_compass_angle to 0.00 deg.
 - So the pipeline works only where Mapillary serves images (most of the world outside Ukraine); Ukraine keeps the
   region style until its imagery opens again or another source is found.
+
+## Google (checked 2026-11-09)
+- **Photorealistic 3D Tiles** (Map Tiles API): 1,000 root tileset requests a month free, then $6 per 1,000; one
+  root request is a renderer session of up to 3 hours. A Google Cloud billing account (a card) is needed even for
+  the free part. Projects created after 8 July 2025 with an EU/EEA billing address get no 3D tiles (Ukraine: not
+  EEA).
+- **Policies** (developers.google.com/maps/documentation/tile/policies): allowed as a map *visualization* in a
+  third-party renderer (Cesium for Unreal / Unity are the examples) with the Google Maps logo and the tiles' data
+  attributions on screen, caching only as the responses' Cache-Control / ETag allow. Not allowed: pre-fetching,
+  storing, offline use, image analysis, machine interpretation, object detection, geodata extraction, building 3D
+  models from it. So: Google's photos as a *source* for our facades (path B on Google) is forbidden; streaming
+  Google's mesh live into the game as what is drawn, attributed, not kept, is the one use its terms allow.
+- Not upstreamable (each player's own key and billing; the upstream owner refused Yandex / 2GIS on terms, #139).
+- Technical work for that layer: Draco decoding (threedmr's GLB reader has none), 3D Tiles traversal by screen
+  error, ECEF to the anchor frame, keeping its ground out (the mod's terrain and roads draw the ground: Google's
+  mesh clipped to building footprints), BeamNG's mesh files only as temporary files, attribution in the HUD.
+- Coverage of Kyiv: to check with a key (one root request and a few tiles).
