@@ -43,7 +43,7 @@ class TrolleyTest(unittest.TestCase):
         spec = roads.Spec(12.0, "paved", True, "primary", False)
         rows, wires = self.place(spec, self.wid)
         n = len(wires)
-        deck = (np.array([[100.0, -40.0, 15.0], [100.0, 40.0, 15.0]]), 6.0)     # 3-5 m over the wires at x = 100
+        deck = (np.array([[100.0, -40.0, 17.5], [100.0, 40.0, 17.5]]), 6.0)   # 0.7 m over the contact wires at x = 100
         kept = furniture.under_decks(rows, [deck], wires)
         self.assertLess(len(wires), n, "the wires under the deck removed")
         self.assertTrue(all(isinstance(w, tuple) and len(w) == 2 for w in wires), "the rest keep their widths")
