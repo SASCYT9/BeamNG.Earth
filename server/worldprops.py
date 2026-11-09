@@ -96,6 +96,11 @@ def tile_props(frame, tx, ty, md, elev):
             frame, _layer(md, roads.cells_of_tile(frame, tx, ty, margin=speedbumps.SNAP_M + 1.0), "roads")))))
     except Exception as ex:
         log.warning("speed bumps: %s: %s", type(ex).__name__, ex)
+    try:                    # mapped playgrounds, waste bins and kiosks (osmextras.py: the shipped OpenStreetMap extracts)
+        import osmextras
+        placed.extend(osmextras.rows(frame, (x0, y0, x1, y1), roads_xy))
+    except Exception as ex:
+        log.warning("playgrounds, bins, kiosks: %s: %s", type(ex).__name__, ex)
     boxes.sort(key=lambda b: (b["x"], b["y"]))
     placed.extend(boxes[:CONT_TILE_MAX])
     if not placed:
