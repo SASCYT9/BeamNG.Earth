@@ -840,10 +840,11 @@ def under_decks(rows, decks, wires=None):
     if wires is not None:
         keep = []
         for w in wires:
-            w = np.asarray(w, np.float64)
-            if not levels.wire_hit(np.ascontiguousarray(w[:, 0]), np.ascontiguousarray(w[:, 1]),
-                                   np.ascontiguousarray(w[:, 2]), float(DECK_WIRE_M), float(DECK_HEADROOM_M)):
-                keep.append(w)
+            # (a wire is its points, or (points, half width): wire_mesh's form; the trolleybus wires, trolley.py)
+            pts = np.asarray(w[0] if isinstance(w, tuple) else w, np.float64)
+            if not levels.wire_hit(np.ascontiguousarray(pts[:, 0]), np.ascontiguousarray(pts[:, 1]),
+                                   np.ascontiguousarray(pts[:, 2]), float(DECK_WIRE_M), float(DECK_HEADROOM_M)):
+                keep.append((pts, w[1]) if isinstance(w, tuple) else pts)
         wires[:] = keep
     return out
 
