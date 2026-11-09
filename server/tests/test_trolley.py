@@ -37,6 +37,18 @@ class TrolleyTest(unittest.TestCase):
         spans = [w for w, r in wires if r == trolley.SPAN_R]
         self.assertEqual(len(spans), len(poles) // 2, "a span wire across at every pair of poles")
 
+    def test_kept_clear_under_a_deck(self):
+        """furniture.under_decks takes the (points, half width) wires: those under a low deck go."""
+        import furniture
+        spec = roads.Spec(12.0, "paved", True, "primary", False)
+        rows, wires = self.place(spec, self.wid)
+        n = len(wires)
+        deck = (np.array([[100.0, -40.0, 15.0], [100.0, 40.0, 15.0]]), 6.0)     # 3-5 m over the wires at x = 100
+        kept = furniture.under_decks(rows, [deck], wires)
+        self.assertLess(len(wires), n, "the wires under the deck removed")
+        self.assertTrue(all(isinstance(w, tuple) and len(w) == 2 for w in wires), "the rest keep their widths")
+        self.assertLessEqual(len(kept), len(rows))
+
     def test_one_direction_and_unmapped(self):
         spec = roads.Spec(12.0, "paved", True, "primary", False)
         self.assertEqual(trolley.pairs(spec, "forward"), [-4.25])
