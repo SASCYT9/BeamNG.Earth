@@ -347,6 +347,16 @@ M.GROUP_MAX_M.golfflag = 400
 -- its top); rows smaller than that are the bump scaled down for a narrow road.
 M.CATALOG.speedbump = { { '/levels/italy/art/shapes/misc/speedbump_01a', 0.166 } }
 M.GROUP_MAX_M.speedbump = 300
+-- Mapped playgrounds and street kiosks (server osmextras.py; tools/build_playground_props.py): their own painted shapes,
+-- origin on the ground; the kiosk's window is its local +y.
+M.CATALOG.playswing = { { '/levels/beamng_earth/art/shapes/beamngEarth/bne_play_swing', 2.36 } }
+M.CATALOG.playslide = { { '/levels/beamng_earth/art/shapes/beamngEarth/bne_play_slide', 1.98 } }
+M.CATALOG.playclimb = { { '/levels/beamng_earth/art/shapes/beamngEarth/bne_play_climb', 1.82 } }
+M.CATALOG.kiosk = { { '/levels/beamng_earth/art/shapes/beamngEarth/bne_kiosk', 2.55 } }
+M.GROUP_MAX_M.playswing = 300
+M.GROUP_MAX_M.playslide = 300
+M.GROUP_MAX_M.playclimb = 300
+M.GROUP_MAX_M.kiosk = 500
 -- Pure: whether a group is a road barrier's (guard rails, jersey and cable barriers): continuous runs, not thinned
 -- below the tile cap.
 function M.isBarrier(g)
@@ -605,6 +615,7 @@ local function setup()
     if not FS or FS:fileExists(p) then pcall(loadJsonMaterialsFile, p) end
   end
   pcall(loadJsonMaterialsFile, '/levels/beamng_earth/art/shapes/beamngEarth/golf_flag.materials.json')
+  pcall(loadJsonMaterialsFile, '/levels/beamng_earth/art/shapes/beamngEarth/playground.materials.json')
   if FS and readFile and writeFile then
     local ok, made = pcall(staticSignal)
     if ok and made then M.CATALOG.signal[1][1] = M.STATIC_SIGNAL
